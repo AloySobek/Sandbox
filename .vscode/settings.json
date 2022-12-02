@@ -1,0 +1,15 @@
+{
+    "files.exclude": {
+        "**/build": true,
+        "**/lib": true,
+        "**/.git": true,
+    },
+
+    "search.exclude": {
+        "**/build": true,
+        "**/lib": true,
+        "**/.git": true,
+    },
+
+    "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: Google, IndentWidth: 4, ColumnLimit: 100}"
+}
