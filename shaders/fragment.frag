@@ -1,9 +1,7 @@
 #version 410
 
-in vec4 color_to_fragment;
-
-out vec4 color;
+out vec4 FragColor;
 
 void main() {
-    color = color_to_fragment;
+    FragColor = vec4(1.0f);
 }
