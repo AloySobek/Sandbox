@@ -1,11 +1,5 @@
 # Sandbox
 
-My endeavour to create a game engine
+## Goal
 
-## Description
-
-Main purpose of this project is to provide me a sandbox where I can try different mathematical concepts
-
-## Constraints
-
-I will not use any third party library as it is not a production project but rather educational. I must implement every feature myself only
+I need a small graphics engine which will allow me to write 
