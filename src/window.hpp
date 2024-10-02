@@ -1,9 +1,13 @@
+#ifndef WINDOW_HPP
+#define WINDOW_HPP
+
+#include <GL/glew.h>
 #include <GLFW/glfw3.h>
+#include <spdlog/spdlog.h>
+#include <stdexcept>
 
 class Window {
   public:
-    bool initialized;
-
     Window(int width, int height, const char *title) : width_{0}, height_{0}, window_{nullptr} {
         if (!glfwInit()) {
             throw std::runtime_error("Could not initialize GLFW library");
@@ -69,16 +73,4 @@ class Window {
     int width_, height_;
 };
 
-class Application {
-  public:
-    Application() {}
-
-    Application(const Application &other) = delete;
-    Application &operator=(const Application &other) = delete;
-
-    void loop() {}
-
-    ~Application() {}
-
-  private:
-};
+#endif

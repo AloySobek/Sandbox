@@ -27,7 +27,7 @@ file(GLOB_RECURSE SRC CONFIGURE_DEPENDS "src/*.cpp" "src/*.c")
 
 add_compile_definitions(CMAKE_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\")
 
-add_executable(${PROJECT_NAME} src/sandbox.cpp)
+add_executable(${PROJECT_NAME} ${SRC})
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${GLEW_INCLUDE_DIRS})

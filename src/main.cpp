@@ -1,179 +1,146 @@
-#include <btBulletDynamicsCommon.h>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include <fstream>
+#include <iostream>
 #include <spdlog/spdlog.h>
 
-#include <chrono>
-#include <cmath>
-#include <cstdint>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/quaternion.hpp>
-#include <iostream>
-#include <memory>
-#include <stdexcept>
-
-#include "camera.hpp"
-#include "physics.hpp"
-#include "program.hpp"
-#include "transform.hpp"
 #include "window.hpp"
 
-#define MS_PER_UPDATE_FRAME 16
+static const GLchar *read_shader_src(const char *filename) {
+    GLchar *data = NULL;
 
-int main() {
-    std::unique_ptr<Window> window;
-    std::unique_ptr<Program> program;
-    std::unique_ptr<Camera> camera;
-    std::unique_ptr<Physics> physics;
+    std::ifstream file;
+    size_t filesize;
 
-    try {
-        window.reset(new Window(1280, 720, "OpenGL"));
+    file.open(filename, std::ifstream::binary | std::ifstream::ate);
 
-        program.reset(new Program());
-
-        camera.reset(new Camera(glm::vec3(0.0f, 0.0f, 5.0f)));
-
-        physics.reset(new Physics());
-    } catch (std::exception &error) {
-        spdlog::error(error.what());
-
-        return (-1);
+    if (!file.good()) {
+        std::cout << "Can't open file " << filename << std::endl;
+        return NULL;
     }
 
-    Vertices capsule_vertices = physics->GetCapsuleVertices();
-    spdlog::info("Capsule: {}", capsule_vertices.size);
-    Vertices box_vertices = physics->GetBoxVertices();
-    spdlog::info("Box: {}", box_vertices.size);
+    filesize = file.tellg();
+    file.close();
 
-    GLfloat *vertices = new GLfloat[capsule_vertices.size * 3 + box_vertices.size * 3];
-    memcpy(vertices, capsule_vertices.vertices, sizeof(GLfloat) * 3 * capsule_vertices.size);
-    memcpy(vertices + capsule_vertices.size * 3, box_vertices.vertices,
-           sizeof(GLfloat) * 3 * box_vertices.size);
+    data = new GLchar[filesize + 1];
 
-    unsigned int VBO, VAO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &VBO);
+    file.open(filename);
+    file.read(data, filesize);
 
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER,
-                 sizeof(GLfloat) * (capsule_vertices.size * 3 + box_vertices.size * 3), vertices,
-                 GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+    data[filesize] = '\0';
+
+    return data;
+}
+
+int main() {
+    Window window(1280, 720, "Sandbox");
+    GLint success;
+
+    const GLchar *vertex_shader_src = read_shader_src("./src/shaders/vertex.vert");
+
+    if (!vertex_shader_src) {
+        return -1;
+    }
+
+    const GLchar *fragment_shader_src = read_shader_src("./src/shaders/fragment.frag");
+
+    if (!fragment_shader_src) {
+        return -1;
+    }
+
+    unsigned int vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+    unsigned int fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+
+    glShaderSource(vertex_shader, 1, &vertex_shader_src, NULL);
+    glShaderSource(fragment_shader, 1, &fragment_shader_src, NULL);
+
+    glCompileShader(vertex_shader);
+    glCompileShader(fragment_shader);
+
+    glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
+
+    if (success == GL_FALSE) {
+        char log[512];
+
+        glGetShaderInfoLog(vertex_shader, 512, NULL, log);
+
+        std::cout << "Vertex shader compilation error: " << log << std::endl;
+
+        return -1;
+    }
+
+    glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
+
+    if (success == GL_FALSE) {
+        char log[512];
+
+        glGetShaderInfoLog(fragment_shader, 512, NULL, log);
+
+        std::cout << "Fragment shader compilation error: " << log << std::endl;
+
+        return -1;
+    }
+
+    unsigned int program = glCreateProgram();
+
+    glAttachShader(program, vertex_shader);
+    glAttachShader(program, fragment_shader);
+    glLinkProgram(program);
+
+    glGetProgramiv(program, GL_LINK_STATUS, &success);
+
+    if (success == GL_FALSE) {
+        char log[512];
+
+        glGetProgramInfoLog(program, 512, NULL, log);
+
+        std::cout << "Program linking error: " << log << std::endl;
+
+        return -1;
+    }
+
+    glDeleteShader(vertex_shader);
+    glDeleteShader(fragment_shader);
+
+    unsigned int vao;
+    glGenVertexArrays(1, &vao);
+
+    glBindVertexArray(vao);
+
+    float vertices[] = {0.0f, 1.0f, 0.0f, 0.0f, -1.0f, 0.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
+
+    unsigned int indices[] = {0, 1, 2, 3};
+
+    unsigned int vbo;
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+    unsigned int ebo;
+    glGenBuffers(1, &ebo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(float) * 3, (void *)0);
     glEnableVertexAttribArray(0);
 
-    btTransform capsule_transform(btQuaternion(0.0f, 0.0f, 0.0f, 1.0f),
-                                  btVector3(0.0f, 0.0f, 0.0f));
-    btTransform box_transform(btQuaternion(0.0f, 0.0f, 0.0f, 1.0f), btVector3(10.0f, 0.0f, 0.0f));
-
-    physics->SpawnCapsule(0, capsule_transform);
-    physics->SpawnBox(0, box_transform);
-
-    Transform transform1(capsule_transform);
-    Transform transform2(box_transform);
-
-    // program->Use();
-    program->SetProjectionMatrix(glm::perspective(
-        glm::radians(45.0f), (float)window->width_ / (float)window->height_, 0.1f, 100.0f));
-
-    uint32_t prev{0}, cur{0}, dt{0}, accum{0}, tick{0};
-
-    prev = std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
-               .count();
-
-    while (!glfwWindowShouldClose(window->window_)) {
-        cur = std::chrono::duration_cast<std::chrono::milliseconds>(
-                  std::chrono::system_clock::now().time_since_epoch())
-                  .count();
-
-        dt = cur - prev;
-        prev = cur;
-        accum += dt;
-
-        while (accum >= MS_PER_UPDATE_FRAME) {
-            if (glfwGetKey(window->window_, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-                glfwSetWindowShouldClose(window->window_, true);
-            }
-
-            if (glfwGetKey(window->window_, GLFW_KEY_W) == GLFW_PRESS) {
-                camera->MoveForward(0.1f);
-            }
-
-            if (glfwGetKey(window->window_, GLFW_KEY_S) == GLFW_PRESS) {
-                camera->MoveBackward(0.1f);
-            }
-
-            if (glfwGetKey(window->window_, GLFW_KEY_D) == GLFW_PRESS) {
-                camera->MoveRight(0.1f);
-            }
-
-            if (glfwGetKey(window->window_, GLFW_KEY_A) == GLFW_PRESS) {
-                camera->MoveLeft(0.1f);
-            }
-
-            physics->Tick();
-
-            accum -= MS_PER_UPDATE_FRAME;
-
-            ++tick;
-        }
-
-        static double last_x = 0, last_y = 0;
-
-        double x, y;
-
-        glfwGetCursorPos(window->window_, &x, &y);
-
-        if (last_x == 0)
-            last_x = x;
-        if (last_y == 0)
-            last_y = y;
-
-        if (glfwGetMouseButton(window->window_, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS) {
-            camera->Rotate(glm::angleAxis(glm::radians(float(y - last_y) * 0.1f),
-                                          glm::vec3(1.0f, 0.0f, 0.0f)));
-
-            camera->Rotate(glm::angleAxis(glm::radians(float(x - last_x) * 0.1f),
-                                          glm::vec3(0.0f, 1.0f, 0.0f)));
-        }
-
-        last_y = y;
-        last_x = x;
-
+    while (!glfwWindowShouldClose(window.get_window())) {
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        glUseProgram(program->program_);
+        glUseProgram(program);
+        glBindVertexArray(vao);
 
-        glBindVertexArray(VAO);
+        glDrawElements(GL_LINES, 6, GL_UNSIGNED_INT, 0);
 
-        program->SetViewMatrix(camera->GetViewMatrix());
+        // glDrawArrays(GL_TRIANGLES, 0, 3);
 
-        transform1.Rotate(glm::angleAxis(glm::radians(1.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
-
-        program->SetModelMatrix(transform1.GetModelMatrix());
-
-        glDrawArrays(GL_LINES, 0, capsule_vertices.size);
-
-        transform2.Rotate(glm::angleAxis(glm::radians(1.0f), glm::vec3(0.0f, 1.0f, 0.0f)));
-        transform2.Translate(glm::vec3(-0.01f, 0.0f, 0.0f));
-
-        program->SetModelMatrix(transform2.GetModelMatrix());
-
-        glDrawArrays(GL_LINES, capsule_vertices.size, capsule_vertices.size + box_vertices.size);
-
-        glfwSwapBuffers(window->window_);
+        glfwSwapBuffers(window.get_window());
         glfwPollEvents();
     }
 
-    return (0);
+    delete vertex_shader_src;
+    delete fragment_shader_src;
+
+    return 0;
 }
-
-// unsigned int EBO;
-// glGenBuffers(1, &EBO);
-// glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-// glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(shape.indices), shape.indices,
-// GL_STATIC_DRAW); glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-
-// glBindVertexArray(0);
